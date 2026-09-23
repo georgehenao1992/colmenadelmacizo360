@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#12160f" />
+    <meta name="description" content="Recorrido panorámico 360° por Colmena del Macizo." />
+    <title>Colmena del Macizo · Experiencia 360°</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #f6f1df;
+        --muted: #c9c4b4;
+        --glass: rgba(15, 18, 12, 0.74);
+        --glass-strong: rgba(15, 18, 12, 0.9);
+        --line: rgba(255, 255, 255, 0.16);
+        --honey: #efb849;
+        --honey-dark: #9d6821;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body, main, #panorama { width: 100%; height: 100%; margin: 0; }
+
+      body {
+        overflow: hidden;
+        background: #11140d;
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      button { font: inherit; }
+
+      #panorama { background: #181b12; }
+
+      .chrome {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        pointer-events: none;
+        padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px 10px 10px;
+        background: var(--glass);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        backdrop-filter: blur(16px);
+        box-shadow: 0 12px 42px rgba(0, 0, 0, 0.22);
+      }
+
+      .brand-mark {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+        color: #17130a;
+        background: linear-gradient(145deg, #ffd878, var(--honey));
+        font-size: 20px;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+      }
+
+      .brand-copy { min-width: 0; }
+
+      .eyebrow {
+        margin: 0 0 2px;
+        color: var(--honey);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.05rem, 2.2vw, 1.35rem); font-weight: 500; letter-spacing: 0.01em; }
+
+      .actions, .zoom-controls { display: flex; gap: 8px; pointer-events: auto; }
+
+      .control {
+        width: 46px;
+        height: 46px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        color: var(--ink);
+        background: var(--glass);
+        backdrop-filter: blur(16px);
+        cursor: pointer;
+        transition: transform .18s ease, background .18s ease, border-color .18s ease;
+      }
+
+      .control:hover { transform: translateY(-2px); background: var(--glass-strong); border-color: rgba(239,184,73,.65); }
+      .control:focus-visible { outline: 3px solid var(--honey); outline-offset: 3px; }
+      .control svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .control.is-active { color: #17130a; background: var(--honey); }
+
+      .bottom-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+
+      .instruction {
+        max-width: 360px;
+        margin: 0;
+        padding: 12px 15px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        color: var(--muted);
+        background: var(--glass);
+        backdrop-filter: blur(16px);
+        font-size: 0.9rem;
+        line-height: 1.45;
+        pointer-events: auto;
+        transition: opacity .5s ease, transform .5s ease;
+      }
+
+      .instruction strong { color: var(--ink); font-weight: 650; }
+      .instruction.is-hidden { opacity: 0; transform: translateY(10px); pointer-events: none; }
+
+      .zoom-controls { flex-direction: column; }
+
+      .status {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at center, #29301e, #10130c 70%);
+        transition: opacity .45s ease, visibility .45s ease;
+      }
+
+      .status.is-hidden { opacity: 0; visibility: hidden; }
+
+      .loader { text-align: center; padding: 28px; }
+      .loader-mark { font-size: 2.4rem; display: inline-block; animation: breathe 1.5s ease-in-out infinite; }
+      .loader p { margin: 12px 0 0; color: var(--muted); }
+      .loader .error { max-width: 420px; color: #ffd0c7; line-height: 1.5; }
+
+      @keyframes breathe { 50% { transform: scale(1.1); filter: brightness(1.25); } }
+
+      .pnlm-container { font-family: inherit; }
+      .pnlm-load-box, .pnlm-about-msg, .pnlm-controls-container { display: none !important; }
+      .pnlm-dragfix, .pnlm-render-container { cursor: grab; }
+      .pnlm-dragfix:active, .pnlm-render-container:active { cursor: grabbing; }
+
+      .pnlm-hotspot-base.scene-corner-hotspot {
+        width: 58px;
+        height: 58px;
+        margin: -29px 0 0 -29px;
+        border: 2px solid rgba(255, 255, 255, 0.92);
+        border-radius: 50%;
+        background: rgba(15, 18, 12, 0.82);
+        box-shadow: 0 0 0 7px rgba(239, 184, 73, 0.2), 0 10px 28px rgba(0, 0, 0, 0.45);
+        cursor: pointer;
+        transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
+        animation: hotspot-pulse 2.2s ease-in-out infinite;
+      }
+
+      .pnlm-hotspot-base.scene-corner-hotspot::before {
+        content: '';
+        position: absolute;
+        inset: 15px;
+        border-top: 3px solid var(--honey);
+        border-right: 3px solid var(--honey);
+        transform: rotate(45deg) translate(-3px, 3px);
+      }
+
+      .pnlm-hotspot-base.scene-corner-hotspot:hover,
+      .pnlm-hotspot-base.scene-corner-hotspot:focus-visible {
+        background: rgba(22, 27, 17, 0.96);
+        box-shadow: 0 0 0 9px rgba(239, 184, 73, 0.28), 0 12px 34px rgba(0, 0, 0, 0.55);
+      }
+
+      .pnlm-hotspot-base.scene-corner-hotspot span {
+        width: max-content;
+        max-width: 190px;
+        left: 50%;
+        bottom: 72px;
+        transform: translateX(-50%);
+        padding: 9px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        color: var(--ink);
+        background: rgba(15, 18, 12, 0.94);
+        font-size: 0.84rem;
+        font-weight: 650;
+        line-height: 1.3;
+        text-align: center;
+      }
+
+      @keyframes hotspot-pulse {
+        50% { box-shadow: 0 0 0 12px rgba(239, 184, 73, 0.06), 0 10px 28px rgba(0, 0, 0, 0.45); }
+      }
+
+      @media (max-width: 620px) {
+        .chrome { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+        .brand { padding-right: 12px; }
+        .brand-mark { width: 34px; height: 34px; border-radius: 10px; }
+        .eyebrow { font-size: 0.67rem; }
+        h1 { font-size: 1rem; }
+        .actions { gap: 6px; }
+        .control { width: 43px; height: 43px; border-radius: 13px; }
+        .instruction { max-width: min(280px, calc(100vw - 80px)); font-size: 0.82rem; padding: 10px 12px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <main aria-label="Recorrido panorámico por Colmena del Macizo">
+      <div id="panorama" aria-label="Vista panorámica interactiva de 360 grados"></div>
+
+      <div class="chrome">
+        <div class="topbar">
+          <div class="brand" aria-label="Colmena del Macizo">
+            <div class="brand-mark" aria-hidden="true">⬡</div>
+            <div class="brand-copy">
+              <p class="eyebrow" id="scene-name">Experiencia 360°</p>
+              <h1>Colmena del Macizo</h1>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="control" id="motion" type="button" aria-label="Activar movimiento del teléfono" aria-pressed="false" title="Mover con el teléfono">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10 18.5h4M3 8.5c-1.1 2.1-1.1 4.9 0 7M21 8.5c1.1 2.1 1.1 4.9 0 7"/></svg>
+            </button>
+            <button class="control" id="fullscreen" type="button" aria-label="Ver en pantalla completa" title="Pantalla completa">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div></div>
+
+        <div class="bottom-row">
+          <p class="instruction" id="hint"><strong>Explora el espacio.</strong> Arrastra para mirar alrededor y usa la rueda o los botones para acercarte.</p>
+          <div class="zoom-controls" aria-label="Controles de acercamiento">
+            <button class="control" id="zoom-in" type="button" aria-label="Acercar" title="Acercar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button class="control" id="zoom-out" type="button" aria-label="Alejar" title="Alejar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="status" id="status" role="status" aria-live="polite">
+        <div class="loader">
+          <span class="loader-mark" aria-hidden="true">⬡</span>
+          <p id="status-copy">Preparando la experiencia 360°…</p>
+        </div>
+      </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+    <script>
+      (() => {
+        const status = document.getElementById('status');
+        const statusCopy = document.getElementById('status-copy');
+        const hint = document.getElementById('hint');
+        const motionButton = document.getElementById('motion');
+
+        if (!window.pannellum) {
+          statusCopy.className = 'error';
+          statusCopy.textContent = 'No fue posible cargar el visor. Comprueba tu conexión e inténtalo de nuevo.';
+          return;
+        }
+
+        const sceneName = document.getElementById('scene-name');
+
+        const viewer = pannellum.viewer('panorama', {
+          default: {
+            firstScene: 'principal',
+            sceneFadeDuration: 900,
+            autoLoad: true,
+            showControls: false,
+            showFullscreenCtrl: false,
+            showZoomCtrl: false,
+            compass: false,
+            minHfov: 45,
+            maxHfov: 120,
+            autoRotate: -1.6,
+            autoRotateInactivityDelay: 4500,
+            friction: 0.18,
+            keyboardZoom: true,
+            mouseZoom: true,
+            draggable: true,
+            strings: {
+            loadButtonLabel: 'Cargar panorama',
+            loadingLabel: 'Cargando panorama…',
+            bylineLabel: 'por %s',
+            noPanoramaError: 'No se pudo cargar la imagen panorámica.',
+            fileAccessError: 'Esta experiencia debe abrirse desde un servidor web.',
+            malformedURLError: 'La dirección del panorama no es válida.',
+            iOS8WebGLError: 'Este dispositivo no admite el visor 360°.',
+            genericWebGLError: 'Tu navegador no pudo iniciar el visor 360°.',
+            textureSizeError: 'Esta imagen es demasiado grande para el dispositivo.',
+              unknownError: 'Ocurrió un error inesperado.'
+            }
+          },
+          scenes: {
+            principal: {
+              type: 'equirectangular',
+              panorama: 'assets/colmenadelmacizo.JPG',
+              pitch: -7,
+              yaw: 5,
+              hfov: 105,
+              hotSpots: [
+                {
+                  pitch: -19,
+                  yaw: 43,
+                  type: 'scene',
+                  text: 'Entrar a Colmena 360°',
+                  sceneId: 'colmena',
+                  targetPitch: -6,
+                  targetYaw: 0,
+                  cssClass: 'scene-corner-hotspot'
+                }
+              ]
+            },
+            colmena: {
+              type: 'equirectangular',
+              panorama: 'assets/colmena.JPG',
+              pitch: -6,
+              yaw: 0,
+              hfov: 105,
+              hotSpots: [
+                {
+                  pitch: -18,
+                  yaw: -42,
+                  type: 'scene',
+                  text: 'Volver a la escena principal',
+                  sceneId: 'principal',
+                  targetPitch: -7,
+                  targetYaw: 5,
+                  cssClass: 'scene-corner-hotspot'
+                }
+              ]
+            }
+          }
+        });
+
+        viewer.on('load', () => {
+          status.classList.add('is-hidden');
+          window.setTimeout(() => hint.classList.add('is-hidden'), 6500);
+        });
+
+        viewer.on('scenechange', (sceneId) => {
+          statusCopy.className = '';
+          statusCopy.textContent = 'Cargando escena 360°…';
+          status.classList.remove('is-hidden');
+          sceneName.textContent = sceneId === 'colmena' ? 'Colmena 360°' : 'Experiencia 360°';
+        });
+
+        viewer.on('error', (message) => {
+          status.classList.remove('is-hidden');
+          statusCopy.className = 'error';
+          statusCopy.textContent = message || 'No fue posible abrir el panorama.';
+        });
+
+        document.getElementById('zoom-in').addEventListener('click', () => viewer.setHfov(Math.max(45, viewer.getHfov() - 12), 300));
+        document.getElementById('zoom-out').addEventListener('click', () => viewer.setHfov(Math.min(120, viewer.getHfov() + 12), 300));
+
+        document.getElementById('fullscreen').addEventListener('click', async () => {
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen?.();
+          } else {
+            await document.exitFullscreen?.();
+          }
+        });
+
+        motionButton.addEventListener('click', () => {
+          const active = motionButton.getAttribute('aria-pressed') === 'true';
+          if (active) {
+            viewer.stopOrientation();
+            motionButton.setAttribute('aria-pressed', 'false');
+            motionButton.classList.remove('is-active');
+          } else {
+            viewer.startOrientation();
+            motionButton.setAttribute('aria-pressed', 'true');
+            motionButton.classList.add('is-active');
+          }
+        });
+
+        document.getElementById('panorama').addEventListener('pointerdown', () => hint.classList.add('is-hidden'), { once: true });
+      })();
+    </script>
+  </body>
+</html>
